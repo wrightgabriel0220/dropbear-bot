@@ -1,0 +1,11 @@
+{
+  "name": "dropbear-bot",
+  "version": "1.0.0",
+  "description": "lil discord bot :)",
+  "main": "bot.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "author": "Gabriel Wright",
+  "license": "ISC"
+}
