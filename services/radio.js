@@ -12,9 +12,11 @@ const radio = {
   isActive: false,
   queue: [],
   getQueueAsString: function() {
+    if (radio.queue.length === 0) { return 'There\'s currently nothing in the queue. Try ~play <target audio> to add something!'; }
+
     let queueMessage = '\nCurrent queue: ';
     radio.queue.forEach((audioResource, index) => {
-      queueMessage = queueMessage.concat(`\n${index + 1}: ${audioResource.title}`);
+      queueMessage = queueMessage.concat(`\n${index + 1}: ${audioResource.meta.videoDetails.title}`);
     });
     return queueMessage;
   }
@@ -22,7 +24,7 @@ const radio = {
 
 const tryPlayFromQueue = () => {
   if (radio.queue.length > 0) {
-    audioPlayer.play(radio.queue[0].audio, { type: 'opus' })
+    audioPlayer.play(radio.queue[0].audio, { type: 'opus' });
   }
 }
 
@@ -56,23 +58,19 @@ module.exports = {
 
         try {
           voiceConnection.subscribe(audioPlayer);
-          const audioResource = createAudioResource(await ytdl(targetURL), {});
-          // audioPlayer.play(audioResource, { type: 'opus' });
           radio.queue.push({
-            audio: audioResource,
-            duration: undefined,
-            title: 'default_title',
+            audio: createAudioResource(await ytdl(targetURL), {}),
+            meta: await ytdl.getBasicInfo(targetURL),
+            getTimeRemainingInMillis: function() {
+              return this.meta.videoDetails.lengthSeconds - this.audio.playbackDuration / 1000
+            },
           });
           if (audioPlayer.state.status !== 'playing') {
             tryPlayFromQueue();
           }
           message.channel.send(radio.getQueueAsString());
           radio.isActive = true;
-          // TODO: Get the total duration from the youtube API and subtract the current timestamp from that for video progress
-          console.log('time left: ', undefined);
-          // setInterval(() => {
-          //   console.log(audioResource.playbackDuration);
-          // }, 5000)
+          console.log('time left: ', radio.queue[0].getTimeRemainingInMillis());
         } catch (err) {
           console.error(err.message);
           message.channel.send(`There was an error: ${err.message}`);
@@ -95,6 +93,14 @@ module.exports = {
     audioPlayer.stop();
     radio.queue = [];
     getVoiceConnection(message.guildId).disconnect();
+  },
+  queue: message => {
+    message.channel.send(radio.getQueueAsString());
+  },
+  skip: message => {
+    message.channel.send('Skipping...');
+    audioPlayer.stop();
+    console.log('audioPlayer status during skip: ', audioPlayer.state.status);
   },
   p: this.play,
   pause: this.stop,
