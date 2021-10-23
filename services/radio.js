@@ -1,12 +1,18 @@
+const ytdl = require('ytdl-core-discord');
+const axios = require('axios');
 const { 
   joinVoiceChannel, 
   createAudioPlayer,
   createAudioResource,
   getVoiceConnection,
 } = require('@discordjs/voice');
-const ytdl = require('ytdl-core-discord');
+const config = require('../config');
 
 const audioPlayer = createAudioPlayer();
+
+audioPlayer.on('error', event => {
+  console.error(`There was an error with the stream/audio resource: ${event}`);
+})
 
 const radio = {
   isActive: false,
@@ -19,6 +25,26 @@ const radio = {
       queueMessage = queueMessage.concat(`\n${index + 1}: ${audioResource.meta.videoDetails.title}`);
     });
     return queueMessage;
+  },
+  play: async function(voiceConnection, message, targetURL) {
+    try {
+      voiceConnection.subscribe(audioPlayer);
+      this.queue.push({
+        audio: createAudioResource(await ytdl(targetURL), {}),
+        meta: await ytdl.getBasicInfo(targetURL),
+        getTimeRemainingInMillis: function() {
+          return this.meta.videoDetails.lengthSeconds - this.audio.playbackDuration / 1000
+        },
+      });
+      if (audioPlayer.state.status !== 'playing') {
+        tryPlayFromQueue();
+      }
+      message.channel.send(this.getQueueAsString());
+      this.isActive = true;
+    } catch (err) {
+      console.error(err.message);
+      message.channel.send(`There was an error: ${err.message}`);
+    }
   }
 };
 
@@ -26,7 +52,22 @@ const tryPlayFromQueue = () => {
   if (radio.queue.length > 0) {
     audioPlayer.play(radio.queue[0].audio, { type: 'opus' });
   }
-}
+};
+
+const connectToUserVoiceChannel = (message, client) => {
+  try {
+    const userVoiceChannel = client.channels.cache.get(message.member.voice.channelId);
+    if (userVoiceChannel) {
+      return joinVoiceChannel({
+        channelId: userVoiceChannel.id,
+        guildId: message.guild.id,
+        adapterCreator: message.guild.voiceAdapterCreator,
+      });
+    }
+  } catch (err) {
+    return err;
+  }
+};
 
 audioPlayer.on('idle', event => {
   if (radio.isActive) {
@@ -44,39 +85,53 @@ module.exports = {
       if (args[0].startsWith('https://www.youtube.com/watch?v=')) {
         targetURL = args[0];
       } else {
-        console.log('TODO: Attempt to search youtube videos using the youtube API');
         // TODO: Attempt to search youtube videos using the youtube API
-        targetURL = 'https://www.youtube.com/watch?v=MEg-oqI9qmw'; // Astronaut in the Ocean;
-      }
-      const userVoiceChannel = client.channels.cache.get(message.member.voice.channelId);
-      if (userVoiceChannel) {
-        const voiceConnection = joinVoiceChannel({
-          channelId: userVoiceChannel.id,
-          guildId: message.guild.id,
-          adapterCreator: message.guild.voiceAdapterCreator,
-        });
+        const options = {
+          params: {
+            maxResults: 5,
+            q: args.join(' '),
+            part: 'snippet',
+            type: 'video',
+          },
+        };
 
-        try {
-          voiceConnection.subscribe(audioPlayer);
-          radio.queue.push({
-            audio: createAudioResource(await ytdl(targetURL), {}),
-            meta: await ytdl.getBasicInfo(targetURL),
-            getTimeRemainingInMillis: function() {
-              return this.meta.videoDetails.lengthSeconds - this.audio.playbackDuration / 1000
-            },
+        axios.get(`https://www.googleapis.com/youtube/v3/search?key=${config.youtube.key}`, options)
+          .then(async results => {
+            let resultString = 'Results: ';
+            results.data.items.forEach((video, index) => {
+              resultString += `\n${index + 1}: ${video.snippet.title}`;
+            });
+            message.channel.send(resultString + '\n Enter a number to play the corresponding youtube audio.');
+            const filter = m => m.author.id == message.author.id;
+            await message.channel.awaitMessages({
+              filter: filter,
+              max: 1,
+              time: 5000,
+              errors: ['time'],
+            })
+            .then(msg => {
+              msg = msg.first();
+              console.log('You attempted to give an input! Woo! Your input was ', msg.content);
+              if (Number(msg.content) >= 1 && Number(msg.content) <= 5) {
+                console.log('Aight, doing connection stuff');
+                const voiceConnection = connectToUserVoiceChannel(message, client);
+                if (voiceConnection) {
+                  console.log('Aight, we are connected now with voiceConnection: ', voiceConnection);
+                  targetURL = `https://www.youtube.com/watch?v=${results.data.items[Number(msg.content) - 1].id.videoId}`
+                  return radio.play(voiceConnection, message, targetURL);
+                } else {
+                  message.channel.send('You must be in a voice channel to use this command!');
+                }
+              } else {
+                throw Error('Invalid input for numbers 1-5');
+              }
+            })
+            .catch(err => {
+              message.channel.send('Aborting search operation. Please enter a number between 1 and 5 inclusive next time.');
+              message.channel.send('Error report: ', err);
+            });
           });
-          if (audioPlayer.state.status !== 'playing') {
-            tryPlayFromQueue();
-          }
-          message.channel.send(radio.getQueueAsString());
-          radio.isActive = true;
-          console.log('time left: ', radio.queue[0].getTimeRemainingInMillis());
-        } catch (err) {
-          console.error(err.message);
-          message.channel.send(`There was an error: ${err.message}`);
-        }
-      } else {
-        message.channel.send('You must be in a voice channel to use this command!');
+
       }
     } else {
       radio.isActive = true;
