@@ -12,6 +12,7 @@ const audioPlayer = createAudioPlayer();
 
 audioPlayer.on('error', event => {
   console.error(`There was an error with the stream/audio resource: ${event}`);
+  audioPlayer.unpause();
 })
 
 const radio = {
@@ -85,7 +86,6 @@ module.exports = {
       if (args[0].startsWith('https://www.youtube.com/watch?v=')) {
         targetURL = args[0];
       } else {
-        // TODO: Attempt to search youtube videos using the youtube API
         const options = {
           params: {
             maxResults: 5,
@@ -106,17 +106,15 @@ module.exports = {
             await message.channel.awaitMessages({
               filter: filter,
               max: 1,
-              time: 5000,
+              time: 30000,
               errors: ['time'],
             })
             .then(msg => {
               msg = msg.first();
-              console.log('You attempted to give an input! Woo! Your input was ', msg.content);
+              
               if (Number(msg.content) >= 1 && Number(msg.content) <= 5) {
-                console.log('Aight, doing connection stuff');
                 const voiceConnection = connectToUserVoiceChannel(message, client);
                 if (voiceConnection) {
-                  console.log('Aight, we are connected now with voiceConnection: ', voiceConnection);
                   targetURL = `https://www.youtube.com/watch?v=${results.data.items[Number(msg.content) - 1].id.videoId}`
                   return radio.play(voiceConnection, message, targetURL);
                 } else {
@@ -154,8 +152,24 @@ module.exports = {
   },
   skip: message => {
     message.channel.send('Skipping...');
+    audioPlayer.unpause();
     audioPlayer.stop();
     console.log('audioPlayer status during skip: ', audioPlayer.state.status);
+  },
+  clear: (message, args) => {
+    if (args[0]) {
+      if (radio.queue[Number(args[0]) - 1]) {
+        radio.queue = radio.queue.slice(0, Number(args[0]) - 1).concat(radio.queue.slice(Number(args[0])));
+        message.channel.send(radio.getQueueAsString());
+      } else {
+        message.channel.send(`There is no audio at position ${Number(args[0]) - 1} in the queue.`);
+        return;
+      }
+    } else {
+      message.channel.send('Clearing entire queue...');
+      radio.queue = [];
+      audioPlayer.stop();
+    }
   },
   p: this.play,
   pause: this.stop,

@@ -4,7 +4,9 @@
   "description": "lil discord bot :)",
   "main": "bot.js",
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "test": "echo \"Error: no test specified\" && exit 1",
+    "start:dev": "nodemon bot.js",
+    "start": "node bot.js"
   },
   "author": "Gabriel Wright",
   "license": "ISC",
