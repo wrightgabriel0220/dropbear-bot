@@ -20,7 +20,7 @@ client.on('ready', event => {
 });
 
 client.on('messageCreate', async message => {
-  if (message.content[0] === '>') {
+  if (message.content[0] === '-') {
     console.log(`${message.member.user.username}: ${message.content}`);
     const messageComponents = message.content.slice(1).split(' ');
     
