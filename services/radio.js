@@ -34,7 +34,10 @@ const radio = {
         audio: createAudioResource(await ytdl(targetURL), {}),
         meta: await ytdl.getBasicInfo(targetURL),
         getTimeRemainingInMillis: function() {
-          return this.meta.videoDetails.lengthSeconds - this.audio.playbackDuration / 1000
+          let secondsLeft = this.meta.videoDetails.lengthSeconds - this.audio.playbackDuration / 1000;
+          let minutesLeft = secondsLeft / 60;
+          let totalMinutes = this.meta.videoDetails.lengthSeconds / 60;
+          return `${minutesLeft}:${secondsLeft % 60}/${totalMinutes}:${this.meta.videoDetails.lengthSeconds % 60}`;
         },
       });
       if (audioPlayer.state.status !== 'playing') {
@@ -85,6 +88,10 @@ module.exports = {
     if (args[0]) {
       if (args[0].startsWith('https://www.youtube.com/watch?v=')) {
         targetURL = args[0];
+        const voiceConnection = connectToUserVoiceChannel(message, client);
+        if (voiceConnection) {
+          radio.play(voiceConnection, message, targetURL);
+        }
       } else {
         const options = {
           params: {
@@ -150,6 +157,9 @@ module.exports = {
   queue: message => {
     message.channel.send(radio.getQueueAsString());
   },
+  current: message => {
+    message.channel.send(`${radio.queue[0].meta.title} --- Duration: ${radio.queue[0].getTimeRemainingInMillis()}`);
+  },
   skip: message => {
     message.channel.send('Skipping...');
     audioPlayer.unpause();
@@ -171,6 +181,4 @@ module.exports = {
       audioPlayer.stop();
     }
   },
-  p: this.play,
-  pause: this.stop,
 };
