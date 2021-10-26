@@ -31,13 +31,13 @@ const radio = {
     try {
       voiceConnection.subscribe(audioPlayer);
       this.queue.push({
-        audio: createAudioResource(await ytdl(targetURL), {}),
+        audio: createAudioResource(await ytdl(targetURL, { highWaterMark: 1<<25 }), {}),
         meta: await ytdl.getBasicInfo(targetURL),
         getTimeRemainingInMillis: function() {
-          let secondsLeft = this.meta.videoDetails.lengthSeconds - this.audio.playbackDuration / 1000;
-          let minutesLeft = secondsLeft / 60;
-          let totalMinutes = this.meta.videoDetails.lengthSeconds / 60;
-          return `${minutesLeft}:${secondsLeft % 60}/${totalMinutes}:${this.meta.videoDetails.lengthSeconds % 60}`;
+          let secondsLeft = Math.round(this.meta.videoDetails.lengthSeconds - this.audio.playbackDuration / 1000);
+          let minutesLeft = Math.round(secondsLeft / 60);
+          let totalMinutes = Math.round(this.meta.videoDetails.lengthSeconds / 60);
+          return `${minutesLeft}:${Math.round(secondsLeft % 60)}/${totalMinutes}:${Math.round(this.meta.videoDetails.lengthSeconds % 60)}`;
         },
       });
       if (audioPlayer.state.status !== 'playing') {
