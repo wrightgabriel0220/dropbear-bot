@@ -19,7 +19,7 @@ const radio = {
   isActive: false,
   queue: [],
   getQueueAsString: function() {
-    if (radio.queue.length === 0) { return 'There\'s currently nothing in the queue. Try ~play <target audio> to add something!'; }
+    if (radio.queue.length === 0) { return 'There\'s currently nothing in the queue. Try !play <target audio> to add something!'; }
 
     let queueMessage = '\nCurrent queue: ';
     radio.queue.forEach((audioResource, index) => {
