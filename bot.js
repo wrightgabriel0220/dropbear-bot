@@ -14,6 +14,9 @@ const commands = {
   ...require('./services/radio.js'),
 };
 
+// When we connect to a new channel, create a channel object and add it to activeChannels.
+// That channel object should hold the voiceConnection and the actual channel object
+
 client.on('ready', event => {
   console.log('Connected!');
   console.log(`Logged in as: ${client.user.tag}`);
