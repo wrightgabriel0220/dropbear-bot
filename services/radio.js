@@ -1,6 +1,6 @@
 const ytdl = require('ytdl-core-discord');
 const axios = require('axios');
-const connections = require('../models/connections.js');
+const sessions = require('../models/sessions.js');
 const { 
   joinVoiceChannel, 
   createAudioPlayer,
@@ -13,6 +13,7 @@ class Radio {
     this.isActive = false;
     this.queue = [];
     this.audioPlayer = createAudioPlayer();
+    this.isLooping = false;
 
     this.audioPlayer.on('error', event => {
       console.error(`There was an error with the stream/audio resource: ${event}`);
@@ -21,6 +22,9 @@ class Radio {
   
     this.audioPlayer.on('idle', (event => {
       if (this.isActive) {
+        if (this.isLooping) {
+          this.queue.push(this.queue[0]);
+        }
         this.queue = this.queue.slice(1);
         if (this.queue.length > 0) {
           this.audioPlayer.play(this.queue[0].audio, { type: 'opus' });
@@ -90,9 +94,9 @@ module.exports = {
       // If we have an actual URL, just use the URL
       if (args[0].startsWith('https://www.youtube.com/watch?v=')) {
         targetURL = args[0];
-        let currConnection = connections.get(message.guildId);
+        let currConnection = sessions.get(message.guildId);
         if (currConnection === undefined) {
-          currConnection = connections.subscribe(...getConnectionToUserVoiceChannel(message, client));
+          currConnection = sessions.subscribe(...getConnectionToUserVoiceChannel(message, client));
           currConnection.radio = new Radio();
           currConnection.voice.subscribe(currConnection.radio.audioPlayer);
         } else {
@@ -131,9 +135,9 @@ module.exports = {
               
               if (Number(msg.content) >= 1 && Number(msg.content) <= 5) {
                 targetURL = `https://www.youtube.com/watch?v=${results.data.items[msg.content - 1].id.videoId}`;
-                let currConnection = connections.get(message.guildId);
-                if (connections.get(message.guildId) === undefined) {
-                  currConnection = connections.subscribe(...getConnectionToUserVoiceChannel(message, client));
+                let currConnection = sessions.get(message.guildId);
+                if (sessions.get(message.guildId) === undefined) {
+                  currConnection = sessions.subscribe(...getConnectionToUserVoiceChannel(message, client));
                   currConnection.radio = new Radio();
                   currConnection.voice.subscribe(currConnection.radio.audioPlayer);
                 }
@@ -154,7 +158,7 @@ module.exports = {
       }
     } else {
       try {
-        let currConnection = connections.get(message.guildId);
+        let currConnection = sessions.get(message.guildId);
         currConnection.radio.isActive = true;
         currConnection.radio.audioPlayer.unpause();
       } catch (err) {
@@ -165,7 +169,7 @@ module.exports = {
   },
   stop: message => {
     try {
-      let radio = connections.get(message.guildId).radio;
+      let radio = sessions.get(message.guildId).radio;
       message.channel.send('Stopping playback');
       radio.audioPlayer.pause();
       radio.isActive = false;
@@ -176,11 +180,10 @@ module.exports = {
   die: message => {
     message.channel.send('Goodbye!');
     try {
-      let currConnection = connections.get(message.guildId);
+      let currConnection = sessions.get(message.guildId);
       currConnection.radio.audioPlayer.stop();
       currConnection.radio.queue = [];
       currConnection.voice.disconnect();
-      connections.unsubscribe(message.guildId);
     } catch (err) {
       message.channel.send('There was an error disconnecting the bot. Perhaps the connection could not be identified?');
       console.error(`bot DC error: ${err.message}`);
@@ -188,17 +191,17 @@ module.exports = {
     }
   },
   queue: message => {
-    let radio = connections.get(message.guildId).radio;
+    let radio = sessions.get(message.guildId).radio;
     message.channel.send(radio.getQueueAsString());
   },
   current: message => {
-    let radio = connections.get(message.guildId).radio;
+    let radio = sessions.get(message.guildId).radio;
     message.channel.send(`${radio.queue[0].meta.title} --- Duration: ${radio.queue[0].getTimeRemainingInMillis()}`);
   },
   skip: message => {
     message.channel.send('Skipping...');
     try {
-      let audioPlayer = connections.get(message.guildId).radio.audioPlayer;
+      let audioPlayer = sessions.get(message.guildId).radio.audioPlayer;
       audioPlayer.unpause();
       audioPlayer.stop();
     } catch (err) {
@@ -207,7 +210,7 @@ module.exports = {
   },
   clear: (message, args) => {
     try {
-      let radio = connections.get(message.guildId).radio;
+      let radio = sessions.get(message.guildId).radio;
       if (args[0]) {
         if (radio.queue[Number(args[0]) - 1]) {
           radio.queue = radio.queue.slice(0, Number(args[0]) - 1).concat(radio.queue.slice(Number(args[0])));
@@ -219,11 +222,18 @@ module.exports = {
       } else {
         message.channel.send('Clearing entire queue...');
         radio.queue = [];
-        audioPlayer.stop();
+        radio.audioPlayer.stop();
       }
     } catch (err) {
       message.channel.send('Something went wrong with clearing the queue. Use !queue to confirm the current status of the queue');
       message.channel.send('Error: ', err.message);
     }
   },
+  adminState: message => {
+    console.log(sessions.get(message.guildId));
+  },
+  loop: message => {
+    let radio = sessions.get(message.guildId).radio;
+    radio.isLooping = !radio.isLooping;
+  }
 };
