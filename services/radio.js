@@ -1,4 +1,4 @@
-const ytdl = require('ytdl-core');
+const ytdl = require('ytdl-core-discord');
 const axios = require('axios');
 const sessions = require('../models/sessions.js');
 const {
