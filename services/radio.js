@@ -1,8 +1,8 @@
-const ytdl = require('ytdl-core-discord');
+const ytdl = require('ytdl-core');
 const axios = require('axios');
 const sessions = require('../models/sessions.js');
-const { 
-  joinVoiceChannel, 
+const {
+  joinVoiceChannel,
   createAudioPlayer,
   createAudioResource,
 } = require('@discordjs/voice');
@@ -19,7 +19,7 @@ class Radio {
       console.error(`There was an error with the stream/audio resource: ${event}`);
       this.audioPlayer.unpause();
     });
-  
+
     this.audioPlayer.on('idle', (event => {
       if (this.isActive) {
         if (this.isLooping) {
@@ -132,7 +132,7 @@ module.exports = {
             })
             .then(msg => {
               msg = msg.first();
-              
+
               if (Number(msg.content) >= 1 && Number(msg.content) <= 5) {
                 targetURL = `https://www.youtube.com/watch?v=${results.data.items[msg.content - 1].id.videoId}`;
                 let currConnection = sessions.get(message.guildId);
